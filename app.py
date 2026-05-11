@@ -23,79 +23,56 @@ def get_connection():
 st.title("🚇 서울 지하철 데이터 분석 대시보드")
 st.markdown("승하차 데이터, 무임승차 현황, 기상 정보를 통합 분석합니다.")
 
-# --- 시나리오 1: 비와 지하철 이용의 상관관계 ---
-st.header("1. ☔ 비와 지하철 이용의 상관관계")
+# --- 시나리오 1: 강수량별 지하철 평균 이용량 ---
+st.header("1. ☔ 강수량별 지하철 평균 이용량")
 
-# 수정된 쿼리: 각 테이블을 먼저 그룹화한 후 JOIN 하여 데이터 뻥튀기 방지
+# 강수량을 5mm 단위로 구간화(Binning)하여 평균 이용객 수 계산
 query1 = """
 SELECT 
-    A.년월, 
-    A.총이용객, 
-    B.평균강수량
-FROM (
-    SELECT SUBSTR(사용일자, 1, 6) AS 년월, 
-           SUM(승차총승객수 + 하차총승객수) AS 총이용객
-    FROM 승하차 
-    GROUP BY SUBSTR(사용일자, 1, 6)
-) A
-JOIN (
-    SELECT 년월, 
-           AVG(강수량) AS 평균강수량
-    FROM 강수량 
-    GROUP BY 년월
-) B ON A.년월 = B.년월
-ORDER BY A.년월
+    (CAST(B.강수량 / 5 AS INTEGER) * 5) AS 강수구간, 
+    AVG(A.승차총승객수 + A.하차총승객수) AS 평균이용객수
+FROM 승하차 A
+JOIN 강수량 B ON SUBSTR(A.사용일자, 1, 6) = B.년월
+GROUP BY 강수구간
+ORDER BY 강수구간
 """
 
 df1 = pd.read_sql(query1, get_connection())
 
-# [핵심 수정] X축 데이터 타입을 문자열로 변환 (202603 -> "2026-03" 형태 권장)
-df1['년월'] = df1['년월'].astype(str) 
+# 2열 레이아웃 설정 (차트 비중을 더 크게)
+col1, col2 = st.columns([2, 1])
 
-fig1 = make_subplots(specs=[[{"secondary_y": True}]])
+with col1:
+    # 막대 차트 생성
+    fig1 = go.Figure(data=[
+        go.Bar(
+            x=df1['강수구간'].apply(lambda x: f"{x}mm ~ {x+4}mm"), 
+            y=df1['평균이용객수'],
+            marker_color='#0066cc' # 사진과 유사한 진한 파란색
+        )
+    ])
 
-# 막대 차트 (총 이용객 수)
-fig1.add_trace(
-    go.Bar(
-        x=df1['년월'], 
-        y=df1['총이용객'], 
-        name="총 이용객 수", 
-        marker_color='lightblue',
-        opacity=0.7
-    ), 
-    secondary_y=False
-)
+    fig1.update_layout(
+        margin=dict(l=20, r=20, t=20, b=20),
+        height=450,
+        xaxis_tickangle=0,
+        plot_bgcolor='white'
+    )
+    
+    fig1.update_yaxes(showgrid=True, gridcolor='lightgrey')
+    st.plotly_chart(fig1, use_container_width=True)
 
-# 라인 차트 (평균 강수량) - mode='lines+markers' 추가하여 단일 데이터도 보이게 설정
-fig1.add_trace(
-    go.Scatter(
-        x=df1['년월'], 
-        y=df1['평균강수량'], 
-        name="평균 강수량(mm)", 
-        mode='lines+markers+text', # 선과 점을 모두 표시
-        line=dict(color="royalblue", width=3),
-        marker=dict(size=8)
-    ), 
-    secondary_y=True
-)
+with col2:
+    # 우측 상단: 사용된 SQL
+    st.info("**사용된 SQL**")
+    st.code(query1, language='sql')
 
-# 레이아웃 업데이트
-fig1.update_layout(
-    title_text="월별 이용객 수와 강수량 비교 (이중축)",
-    xaxis_type='category', # X축을 범주형으로 명시적 지정
-    hovermode="x unified"
-)
-
-fig1.update_yaxes(title_text="<b>이용객 수</b>", secondary_y=False)
-fig1.update_yaxes(title_text="<b>강수량 (mm)</b>", secondary_y=True)
-
-st.plotly_chart(fig1, use_container_width=True)
-
-with st.expander("💡 인사이트 보기"):
-    st.write("강수량이 높은 달(장마철 등)의 이용객 변화를 통해 날씨가 지하철 이용에 미치는 영향을 파악할 수 있습니다.")
-
-st.write("불러온 데이터 행 수:", len(df1))
-st.write(df1) # 데이터프레임 형태를 직접 확인
+    # 우측 하단: 데이터 인사이트
+    st.success("**💡 데이터 인사이트**")
+    st.markdown("""
+    * **적은 강수량(0~5mm)** 구간에서 지하철 이용객 수가 가장 높게 나타나는 경향이 있습니다.
+    * **폭우가 내리는 구간**으로 갈수록 평균 이용객 수가 감소하며, 이는 야외 활동 위축이 지하철 이용량에도 영향을 미침을 시사합니다.
+    """)
 
 # --- 시나리오 2: 실버 노선 분석 ---
 st.header("2. 👴 실버 노선 분석 (무임승차 비중 TOP 10)")
