@@ -23,16 +23,10 @@ def get_connection():
 st.title("🚇 서울 지하철 데이터 분석 대시보드")
 st.markdown("승하차 데이터, 무임승차 현황, 기상 정보를 통합 분석합니다.")
 
-import pandas as pd
-import plotly.graph_objects as go
-from plotly.subplots import make_subplots
-import streamlit as st
+# --- 시나리오 1: 강수 등급별 이용 분석 (에러 수정본) ---
+st.header("1. ☔ 강수 등급별 승/하차 이용 행태")
 
-# --- 시나리오 1: 강수 등급별 지하철 이용 행태 분석 ---
-st.header("1. ☔ 강수 등급별 이용량 및 무임 비중 비교")
-
-# SQL: 강수량을 4개의 등급으로 그룹화하고 각 항목별 평균 계산
-# (데이터가 4개뿐이므로 NTILE 또는 CASE WHEN을 통해 명확히 등급화)
+# 기존에 확인된 컬럼(승차총승객수, 하차총승객수)만 사용합니다.
 query1 = """
 SELECT 
     CASE 
@@ -41,80 +35,60 @@ SELECT
         WHEN B.강수량 < 30 THEN '3단계 (강한비)'
         ELSE '4단계 (매우강한비/폭우)'
     END AS 강수등급,
-    AVG(A.승차총승객수 + A.하차총승객수) AS 평균이용객수,
-    AVG(CAST(A.무임승차인원 AS FLOAT) / (A.유임승차인원 + A.무임승차인원) * 100) AS 무임비중
+    AVG(A.승차총승객수) AS 평균승차객수,
+    AVG(A.하차총승객수) AS 평균하차객수
 FROM 승하차 A
 JOIN 강수량 B ON SUBSTR(A.사용일자, 1, 6) = B.년월
 GROUP BY 강수등급
 ORDER BY B.강수량 ASC
 """
 
-df1 = pd.read_sql(query1, get_connection())
+try:
+    df1 = pd.read_sql(query1, get_connection())
 
-# 2열 레이아웃 설정 (왼쪽: 시각화, 오른쪽: 정보)
-col1, col2 = st.columns([2.5, 1])
+    col1, col2 = st.columns([2.5, 1])
 
-with col1:
-    # 서브플롯 생성: 1행 2열 구조
-    fig = make_subplots(
-        rows=1, cols=2, 
-        subplot_titles=("<b>평균 이용객 수</b>", "<b>노선별 무임 비중 (%)</b>"),
-        horizontal_spacing=0.15
-    )
+    with col1:
+        fig = make_subplots(
+            rows=1, cols=2, 
+            subplot_titles=("<b>평균 승차객 수</b>", "<b>평균 하차객 수</b>"),
+            horizontal_spacing=0.15
+        )
 
-    # 1. 평균 이용객 수 (좌측 차트) - 강렬한 파란색
-    fig.add_trace(
-        go.Bar(
-            x=df1['강수등급'], 
-            y=df1['평균이용객수'],
-            marker=dict(color='#004AAD', line=dict(color='black', width=1)),
-            text=df1['평균이용객수'].map('{:,.0f}'.format),
-            textposition='outside',
-            name="이용객수"
-        ),
-        row=1, col=1
-    )
+        # 1. 평균 승차객 수
+        fig.add_trace(
+            go.Bar(
+                x=df1['강수등급'], y=df1['평균승차객수'],
+                marker_color='#004AAD',
+                text=df1['평균승차객수'].map('{:,.0f}'.format),
+                textposition='outside',
+                name="승차객"
+            ), row=1, col=1
+        )
 
-    # 2. 무임 비중 (우측 차트) - 대비되는 오렌지색/붉은색
-    fig.add_trace(
-        go.Bar(
-            x=df1['강수등급'], 
-            y=df1['무임비중'],
-            marker=dict(color='#FF5733', line=dict(color='black', width=1)),
-            text=df1['무임비중'].map('{:.2f}%'.format),
-            textposition='outside',
-            name="무임비중"
-        ),
-        row=1, col=2
-    )
+        # 2. 평균 하차객 수
+        fig.add_trace(
+            go.Bar(
+                x=df1['강수등급'], y=df1['평균하차객수'],
+                marker_color='#33A1FF', # 조금 더 밝은 파란색
+                text=df1['평균하차객수'].map('{:,.0f}'.format),
+                textposition='outside',
+                name="하차객"
+            ), row=1, col=2
+        )
 
-    # 차트 세부 설정 (Plotly 파라미터 활용)
-    fig.update_layout(
-        height=500,
-        showlegend=False,
-        plot_bgcolor='rgba(240,240,240,0.5)', # 차트 배경색
-        margin=dict(t=50, b=20, l=20, r=20),
-        font=dict(size=13)
-    )
-    
-    # Y축 범위 최적화 (차이가 극명해 보이도록 설정)
-    fig.update_yaxes(range=[0, df1['평균이용객수'].max() * 1.2], row=1, col=1)
-    fig.update_yaxes(range=[df1['무임비중'].min() * 0.9, df1['무임비중'].max() * 1.1], row=1, col=2)
+        fig.update_layout(height=450, showlegend=False, margin=dict(t=50, b=20, l=20, r=20))
+        st.plotly_chart(fig, use_container_width=True)
 
-    st.plotly_chart(fig, use_container_width=True)
+    with col2:
+        st.markdown("### 📝 사용된 SQL")
+        st.code(query1, language='sql')
+        st.markdown("### 💡 인사이트")
+        st.info("강수 등급이 높아질수록 승차와 하차 인원 모두 감소하는지 확인해보세요.")
 
-with col2:
-    # 우측 상단: 사용된 SQL 코드
-    st.markdown("### 📝 사용된 SQL")
-    st.code(query1, language='sql')
-
-    # 우측 하단: 데이터 인사이트
-    st.markdown("### 💡 데이터 인사이트")
-    st.info("""
-    * **이용량 하락:** 강수 등급이 **4단계(폭우)**로 갈수록 전체 이용객 수가 급격히 감소하는 경향을 보입니다.
-    * **인구 통계 변화:** 비가 많이 올수록 무임 비중이 소폭 상승하는 경향이 관찰되는데, 이는 유임 승객(직장인/학생 등)의 외부 활동이 비노약자 층보다 더 민감하게 반응하기 때문으로 해석됩니다.
-    * **시각화 포인트:** 좌우 차트를 통해 강수량에 따른 양적 변화(이용객)와 질적 변화(인구 구성)를 한눈에 대조할 수 있습니다.
-    """)
+except Exception as e:
+    st.error(f"데이터를 불러오는 중 오류가 발생했습니다: {e}")
+    st.write("팁: 테이블에 '승차총승객수'와 '하차총승객수' 컬럼이 있는지 확인해주세요.")
 
 # --- 시나리오 2: 실버 노선 분석 ---
 st.header("2. 👴 실버 노선 분석 (무임승차 비중 TOP 10)")
