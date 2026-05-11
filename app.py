@@ -23,11 +23,6 @@ def get_connection():
 st.title("🚇 서울 지하철 데이터 분석 대시보드")
 st.markdown("승하차 데이터, 무임승차 현황, 기상 정보를 통합 분석합니다.")
 
-import pandas as pd
-import plotly.graph_objects as go
-from plotly.subplots import make_subplots
-import streamlit as st
-
 # --- 시나리오 1: 강수 등급별 지하철 이용 행태 분석 ---
 st.header("1. ☔ 강수 등급별 이용량 및 무임 비중 비교")
 
