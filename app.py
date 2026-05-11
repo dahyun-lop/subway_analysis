@@ -30,10 +30,10 @@ st.header("1. ☔ 강수 등급별 평균 이용량 분석")
 query1 = """
 SELECT 
     CASE 
-        WHEN IFNULL(B.강수량, 0) = 0 THEN '1단계 (맑음)'
-        WHEN B.강수량 <= 2 THEN '2단계 (약한비)'
-        WHEN B.강수량 <= 10 THEN '3단계 (보통비)'
-        ELSE '4단계 (강한비)'
+        WHEN IFNULL(B.강수량, 0) = 0 THEN '1단계'
+        WHEN B.강수량 <= 2 THEN '2단계'
+        WHEN B.강수량 <= 10 THEN '3단계'
+        ELSE '4단계'
     END AS 강수등급,
     AVG(A.승차총승객수 + A.하차총승객수) AS 평균이용객수
 FROM 강수량 B
@@ -80,9 +80,9 @@ try:
             <div style="background-color: #e8f4f8; padding: 20px; border-radius: 10px; border-left: 5px solid #0066cc;">
                 <h5 style="margin-top: 0;">💡 데이터 인사이트</h5>
                 <ul style="font-size: 0.95rem; line-height: 1.6;">
-                    <li><b>1단계(맑음)</b>일 때 지하철 이용객 수가 가장 안정적으로 높게 나타납니다.</li>
-                    <li>강수량이 <b>10mm를 초과하는 4단계(강한비)</b> 구간에서는 야외 활동 감소로 인해 평균 이용량이 1단계 대비 유의미하게 하락합니다.</li>
-                    <li>약한 비(2단계)의 경우, 오히려 도보나 자전거 대신 지하철을 선택하는 경향이 있어 이용객이 소폭 유지되거나 상승할 수 있습니다.</li>
+                    <li><b>1단계</b>일 때 지하철 이용객 수가 가장 안정적으로 높게 나타납니다.</li>
+                    <li>강수량이 <b>10mm를 초과하는 4단계</b> 구간에서는 야외 활동 감소로 인해 평균 이용량이 1단계 대비 유의미하게 하락합니다.</li>
+                    <li>2단계 강수량의 경우, 오히려 도보나 자전거 대신 지하철을 선택하는 경향이 있어 이용객이 소폭 유지되거나 상승할 수 있습니다.</li>
                 </ul>
             </div>
             """, 
