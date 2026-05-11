@@ -23,39 +23,34 @@ def get_connection():
 st.title("🚇 서울 지하철 데이터 분석 대시보드")
 st.markdown("승하차 데이터, 무임승차 현황, 기상 정보를 통합 분석합니다.")
 
-# --- 시나리오 1: 강수 등급별 지하철 이용 분석 ---
-st.header("1. ☔ 강수 등급별 승/하차 이용 행태")
+# --- 시나리오 1: 일일 강수 등급별 지하철 이용 행태 ---
+st.header("1. ☔ 강수 등급별 승/하차 이용 행태 (일간 데이터 기준)")
 
-# 업로드하신 데이터 수치에 맞춰 단계를 최적화한 SQL
-# 1단계: 2월(3.2), 2단계: 1월(7.6), 3단계: 4월(29.8), 4단계: 3월(43.9)
+# 1. 일자별 조인을 위해 날짜 형식을 맞추고(REPLACE), 강수량 수치에 따라 4단계로 분류
+# 2. 업로드된 데이터의 분포(0~15.5mm)를 고려하여 임계값 조정
 query1 = """
 SELECT 
     CASE 
-        WHEN B.강수량 < 5 THEN '1단계 (쾌적)'
-        WHEN B.강수량 < 10 THEN '2단계 (약한비)'
-        WHEN B.강수량 < 35 THEN '3단계 (보통비)'
-        ELSE '4단계 (폭우)'
+        WHEN IFNULL(B.강수량, 0) = 0 THEN '1단계 (맑음)'
+        WHEN B.강수량 <= 2 THEN '2단계 (약한비)'
+        WHEN B.강수량 <= 10 THEN '3단계 (보통비)'
+        ELSE '4단계 (강한비)'
     END AS 강수등급,
     AVG(A.승차총승객수) AS 평균승차객수,
     AVG(A.하차총승객수) AS 평균하차객수
-FROM 승하차 A
-JOIN 강수량 B ON SUBSTR(A.사용일자, 1, 6) = B.년월
+FROM 강수량 B
+LEFT JOIN 승하차 A ON REPLACE(B.년월, '-', '') = A.사용일자
 GROUP BY 강수등급
-ORDER BY CASE 강수등급 
-    WHEN '1단계 (쾌적)' THEN 1 
-    WHEN '2단계 (약한비)' THEN 2 
-    WHEN '3단계 (보통비)' THEN 3 
-    WHEN '4단계 (폭우)' THEN 4 END
+ORDER BY 강수등급 ASC
 """
 
 try:
     df1 = pd.read_sql(query1, get_connection())
 
-    # 레이아웃: 왼쪽(차트 2개), 오른쪽(SQL/인사이트)
+    # 레이아웃 구성
     col1, col2 = st.columns([2.5, 1])
 
     with col1:
-        # 서브플롯 생성
         fig = make_subplots(
             rows=1, cols=2, 
             subplot_titles=("<b>평균 승차객 수</b>", "<b>평균 하차객 수</b>"),
@@ -66,8 +61,8 @@ try:
         fig.add_trace(
             go.Bar(
                 x=df1['강수등급'], y=df1['평균승차객수'],
-                marker_color='#074799', # 더 진한 신뢰감 있는 블루
-                text=df1['평균승차객수'].apply(lambda x: f"{x:,.0f}"),
+                marker_color='#074799',
+                text=df1['평균승차객수'].apply(lambda x: f"{x:,.0f}" if x > 0 else "데이터 없음"),
                 textposition='outside',
                 name="승차객"
             ), row=1, col=1
@@ -78,48 +73,40 @@ try:
             go.Bar(
                 x=df1['강수등급'], y=df1['평균하차객수'],
                 marker_color='#40A2E3',
-                text=df1['평균하차객수'].apply(lambda x: f"{x:,.0f}"),
+                text=df1['평균하차객수'].apply(lambda x: f"{x:,.0f}" if x > 0 else "데이터 없음"),
                 textposition='outside',
                 name="하차객"
             ), row=1, col=2
         )
 
-        # 차트 디테일 설정
         fig.update_layout(
-            height=480,
+            height=500,
             showlegend=False,
             margin=dict(t=60, b=40, l=20, r=20),
-            plot_bgcolor='white',
-            font=dict(size=12)
+            plot_bgcolor='white'
         )
         
-        # Y축 격자선 추가
+        # Y축 격자선 및 범위 최적화
         fig.update_yaxes(showgrid=True, gridcolor='#f0f0f0', row=1, col=1)
         fig.update_yaxes(showgrid=True, gridcolor='#f0f0f0', row=1, col=2)
 
         st.plotly_chart(fig, use_container_width=True)
 
     with col2:
-        # 사용된 SQL 섹션
+        st.markdown("#### **업데이트 사항**")
+        st.info("기존 월별 분석에서 **일별 분석**으로 전환하여 1~4단계를 모두 구현했습니다.")
+        
         st.markdown("#### **사용된 SQL**")
         st.code(query1, language='sql')
-
-        # 데이터 인사이트 섹션
-        st.markdown("---")
-        st.markdown("#### **💡 데이터 인사이트**")
         
-        # 실제 데이터가 존재하는지 확인 후 인사이트 출력
-        if not df1.empty:
-            st.success(f"""
-            * **최대 이용 구간:** '{df1.iloc[0]['강수등급']}'에서 가장 높은 이용량을 보입니다.
-            * **강수량 영향:** 강수량이 {df1.iloc[-1]['강수등급']} 수준으로 높아질 때 승/하차 인원의 변화폭을 확인하세요.
-            * **균형 분석:** 승차와 하차 패턴이 모든 강수 등급에서 유사하게 나타나는지 시각적으로 비교 가능합니다.
-            """)
-        else:
-            st.warning("데이터 조인 결과가 없습니다. '승하차' 테이블에 2026년 1~4월 데이터가 있는지 확인해주세요.")
+        st.markdown("#### **💡 분석 포인트**")
+        st.success("""
+        * 일별 강수량이 0인 날과 비가 온 날의 이용객 차이를 극명하게 비교할 수 있습니다.
+        * **1단계(맑음)** 대비 **4단계(강한비)**의 이용객 감소폭을 통해 날씨 민감도를 파악해 보세요.
+        """)
 
 except Exception as e:
-    st.error(f"오류가 발생했습니다: {e}")
+    st.error(f"데이터 처리 중 오류가 발생했습니다: {e}")
 
 # --- 시나리오 2: 실버 노선 분석 ---
 st.header("2. 👴 실버 노선 분석 (무임승차 비중 TOP 10)")
