@@ -94,6 +94,9 @@ st.plotly_chart(fig1, use_container_width=True)
 with st.expander("💡 인사이트 보기"):
     st.write("강수량이 높은 달(장마철 등)의 이용객 변화를 통해 날씨가 지하철 이용에 미치는 영향을 파악할 수 있습니다.")
 
+st.write("불러온 데이터 행 수:", len(df1))
+st.write(df1) # 데이터프레임 형태를 직접 확인
+
 # --- 시나리오 2: 실버 노선 분석 ---
 st.header("2. 👴 실버 노선 분석 (무임승차 비중 TOP 10)")
 query2 = """
