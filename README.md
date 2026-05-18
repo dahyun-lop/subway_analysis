@@ -1,7 +1,7 @@
 # subway_analysis
 
 (1)사용한 프롬프트
- https://gemini.google.com/share/eb490284d584
+ https://g.co/gemini/share/dc997f7bba9b
  
 (2)데이터와 클린징 과정
 
